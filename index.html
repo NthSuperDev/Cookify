@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cookify</title>
+</head>
+<body>
+  <h1>Welcome to Cookify!</h1>
+  
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+  
+    // Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyBuaxqVA7ILD6F8XjElRQuesILfV8Yz0gg",
+      authDomain: "cookify-599da.firebaseapp.com",
+      projectId: "cookify-599da",
+      storageBucket: "cookify-599da.appspot.com",
+      messagingSenderId: "972844638311",
+      appId: "1:972844638311:web:55932e147dfeafb862f4c2",
+      measurementId: "G-ZGYT0E0YZM"
+    };
+  
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+  
+    // Check if the user is logged in when the page loads
+    onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        // If the user is not logged in, redirect to SignIn.html
+        window.location.href = "SignIn.html";
+      }
+    });
+  </script>
+</body>
+</html>
