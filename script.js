@@ -1,5 +1,6 @@
-// Import the functions you need from the SDKs you need
+// Importera Firebase-moduler
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+import { getFirestore, doc, setDoc, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
 
 import { 
   getAuth, 
@@ -8,10 +9,12 @@ import {
   onAuthStateChanged, 
   GoogleAuthProvider, 
   signInWithPopup,
-  sendEmailVerification  // Importera sendEmailVerification här
+  sendEmailVerification,
+  signOut, 
+  deleteUser
 } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
 
-// Firebase configuration
+// Firebase-konfiguration
 const firebaseConfig = {
   apiKey: "AIzaSyBuaxqVA7ILD6F8XjElRQuesILfV8Yz0gg",
   authDomain: "cookify-599da.firebaseapp.com",
@@ -22,12 +25,13 @@ const firebaseConfig = {
   measurementId: "G-ZGYT0E0YZM"
 };
 
-// Initialize Firebase
+// Initiera Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const db = getFirestore();
 const provider = new GoogleAuthProvider();
 
-// 💡 Simple validation for email and password
+// Validera email och lösenord
 function validateForm(email, password) {
   const errors = [];
 
@@ -42,56 +46,116 @@ function validateForm(email, password) {
   return errors;
 }
 
-// 🔐 Register user
-function register(email, password) {
-  createUserWithEmailAndPassword(auth, email, password)
-    .then((userCredential) => {
-      const user = userCredential.user;
+// Registrera användare med email och lösenord
+async function register(email, password) {
+  try {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
 
-      // Skicka verifieringsmail med den nya metoden
-      sendEmailVerification(user)
-        .then(() => {
-          showMessage(`Confirmation email sent to your inbox.`, "success");
-
-          // 🕒 Vänta några sekunder och omdirigera till inloggning
-          setTimeout(() => {
-            window.location.href = 'SignIn.html';
-          }, 5000);
-        })
-        .catch((error) => {
-          const errorMessage = convertErrorMessage(error.code);
-          showMessage("Failed to send verification email: " + errorMessage, "error");
-        });
-    })
-    .catch((error) => {
-      const errorMessage = convertErrorMessage(error.code);
-      showMessage("Registration error: " + errorMessage, "error");
+    // Lägg till användare i Firestore med rollen "Member"
+    await setDoc(doc(db, "users", user.uid), {
+      email: user.email,
+      role: "Member",
+      createdAt: new Date()
     });
+
+    // Skicka verifieringsmail
+    await sendEmailVerification(user);
+    showMessage(`Confirmation email sent to your inbox.`, "success");
+
+    setTimeout(() => {
+      window.location.href = 'SignIn.html';
+    }, 5000);
+
+  } catch (error) {
+    const errorMessage = convertErrorMessage(error.code);
+    showMessage("Registration error: " + errorMessage, "error");
+  }
 }
 
-function login(email, password) {
-  signInWithEmailAndPassword(auth, email, password)
-    .then((userCredential) => {
-      const user = userCredential.user;
+// Logga in användare med email och lösenord
+async function login(email, password) {
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
 
-      if (!user.emailVerified) {
-        showMessage("Please verify your email before logging in. A verification link was sent to your inbox.", "error");
-        auth.signOut(); // Logga ut direkt om de inte är verifierade
-        return;
-      }
+    if (!user.emailVerified) {
+      showMessage("Please verify your email before logging in. A verification link was sent to your inbox.", "error");
+      await signOut(auth); // Logga ut om ej verifierad
+      return;
+    }
 
-      showMessage("Login successful", "success");
-      setTimeout(() => {
-        window.location.href = 'index.html';
-      }, 3000);
-    })
-    .catch((error) => {
-      const errorMessage = convertErrorMessage(error.code);
-      showMessage(errorMessage, "error", error.code);
-    });
+    showMessage("Login successful", "success");
+    setTimeout(() => {
+      window.location.href = 'index.html';
+    }, 3000);
+
+  } catch (error) {
+    const errorMessage = convertErrorMessage(error.code);
+    showMessage(errorMessage, "error", error.code);
+  }
 }
 
-// Handle registration form submission
+// Logga in med Google och lägg till i Firestore om ny användare
+async function loginWithGoogle() {
+  try {
+    const result = await signInWithPopup(auth, provider);
+    const user = result.user;
+
+    // Kolla om användaren finns i Firestore
+    const userDoc = await getDoc(doc(db, "users", user.uid));
+    if (!userDoc.exists()) {
+      // Lägg till användaren i Firestore med "Member"-rollen
+      await setDoc(doc(db, "users", user.uid), {
+        email: user.email,
+        role: "Member",
+        createdAt: new Date()
+      });
+    }
+
+    alert(`Welcome, ${user.displayName}!`);
+    window.location.href = "index.html";
+
+  } catch (error) {
+    if (error.code === "auth/popup-blocked") {
+      alert("Popup blocker prevented sign-in. Please allow popups and try again.");
+    } else {
+      alert(`Google sign-in error: ${error.message}`);
+    }
+  }
+}
+
+// Funktion för att radera användarens konto OCH Firestore-data
+async function deleteAccountAndData(user) {
+  try {
+    if (!confirm("Are you sure you want to permanently delete your account and all data? This action cannot be undone.")) {
+      return;
+    }
+
+    if (!user || !user.uid) {
+      showMessage("User is not valid or not logged in.", "error");
+      return;
+    }
+
+    // Ta bort användarens dokument i Firestore
+    await deleteDoc(doc(db, "users", user.uid));
+
+    // Ta bort användarkontot i Firebase Authentication
+    await deleteUser(user);
+
+    showMessage("Your account and data have been deleted.", "success");
+
+    setTimeout(() => {
+      window.location.href = "index.html";
+    }, 3000);
+
+  } catch (error) {
+    console.error("Error deleting account:", error);
+    showMessage("Failed to delete account: " + convertErrorMessage(error.code || ""), "error");
+  }
+}
+
+// Event listeners för formulär
 const signupForm = document.getElementById('signup-form');
 if (signupForm) {
   signupForm.addEventListener('submit', (e) => {
@@ -108,7 +172,6 @@ if (signupForm) {
   });
 }
 
-// Handle login form submission
 const signinForm = document.getElementById('signin-form');
 if (signinForm) {
   signinForm.addEventListener('submit', (e) => {
@@ -125,33 +188,29 @@ if (signinForm) {
   });
 }
 
-// Handle Google login button
 const googleSignInBtn = document.getElementById("googleSignInBtn");
 if (googleSignInBtn) {
-  googleSignInBtn.addEventListener("click", () => {
-    signInWithPopup(auth, provider)
-      .then((result) => {
-        const user = result.user;
-        alert(`Welcome, ${user.displayName}!`);
-        window.location.href = "index.html";
-      })
-      .catch((error) => {
-        if (error.code === "auth/popup-blocked") {
-          alert("Popup blocker prevented sign-in. Please allow popups and try again.");
-        } else {
-          alert(`Google sign-in error: ${error.message}`);
-        }
-      });
+  googleSignInBtn.addEventListener("click", loginWithGoogle);
+}
+
+// Lägg till eventlistener för "Radera konto"-knappen
+const deleteAccountBtn = document.getElementById("deleteAccountBtn");
+if (deleteAccountBtn) {
+  deleteAccountBtn.addEventListener("click", () => {
+    const user = auth.currentUser;
+    if (user) {
+      deleteAccountAndData(user);
+    } else {
+      showMessage("No user is currently logged in.", "error");
+    }
   });
 }
 
-// Show message in message box
-// Accepts an optional errorCode to add special UI, e.g. forgot password link on wrong password
+// Visa meddelanden i UI
 function showMessage(message, type = "error", errorCode = null) {
   const messageBox = document.getElementById('message-box');
   if (!messageBox) return;
 
-  // Clear existing content
   messageBox.innerHTML = "";
   messageBox.classList.remove('success', 'error');
 
@@ -161,7 +220,6 @@ function showMessage(message, type = "error", errorCode = null) {
   } else {
     messageBox.classList.add('error');
     if (errorCode === 'auth/wrong-password') {
-      // Append "Forgot password?" link after the error message
       messageBox.innerHTML = `${message} <br> <a href="forgot-password.html" style="color:#00f; text-decoration:underline;">Forgot password?</a>`;
     } else {
       messageBox.innerHTML = message;
@@ -169,7 +227,7 @@ function showMessage(message, type = "error", errorCode = null) {
   }
 }
 
-// Convert Firebase error codes to user-friendly messages
+// Översätt Firebase-felmeddelanden till användarvänliga meddelanden
 function convertErrorMessage(errorCode) {
   switch (errorCode) {
     case 'auth/email-already-in-use':
@@ -209,16 +267,17 @@ function convertErrorMessage(errorCode) {
     case 'auth/invalid-verification-code':
       return 'The verification code you entered is not correct.';
     case 'auth/invalid-verification-id':
-      return 'The verification ID is not valid.';
-    case 'auth/missing-verification-code':
-      return 'You didn’t provide a verification code.';
-    case 'auth/missing-verification-id':
-      return 'You didn’t provide a verification ID.';
-    case 'auth/requires-recent-login':
-      return 'You need to log in again to do this.';
-    case 'auth/operation-not-supported-in-this-environment':
-      return 'This action can’t be done here.';
+      return 'The verification ID is invalid. Please try again.';
     default:
-      return 'An unknown error happened. Please try again later.';
+      return 'An unknown error occurred. Please try again later.';
   }
 }
+
+// On auth state change (optional: kan användas för att uppdatera UI eller redirect)
+onAuthStateChanged(auth, user => {
+  if (user) {
+    console.log("User signed in:", user.email);
+  } else {
+    console.log("No user signed in.");
+  }
+});
