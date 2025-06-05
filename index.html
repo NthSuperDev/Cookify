@@ -2,17 +2,146 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Cookify</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+    
+
+    * {
+      margin: 0; padding: 0; box-sizing: border-box;
+      font-family: 'Poppins', sans-serif;
+    }
+    .Welcome-text {
+      font-family: 'Luckiest Guy', cursive;
+      color: #0075ff;
+      text-shadow: 2px 2px 4px rgba(0, 117, 255, 0.3);
+    }
+    body {
+      background: #f5f7fa;
+      color: #222;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+
+    h1 {
+      font-weight: 600;
+      font-size: 3rem;
+      margin-bottom: 0.5rem;
+      color: #0075ff;
+      text-align: center;
+    }
+
+    #userRole {
+      font-size: 1.2rem;
+      margin-bottom: 2rem;
+      color: #555;
+      text-align: center;
+    }
+
+    .btn-container {
+      margin-bottom: 3rem;
+      display: flex;
+      gap: 1.5rem;
+      justify-content: center;
+    }
+    
+
+    button {
+      background: #0075ff;
+      border: none;
+      color: white;
+      font-weight: 600;
+      padding: 0.8rem 2rem;
+      border-radius: 30px;
+      cursor: pointer;
+      box-shadow: 0 6px 12px rgba(0,117,255,0.3);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    button:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 20px rgba(0,117,255,0.5);
+    }
+
+    .recipes {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 2rem;
+      width: 100%;
+      max-width: 1000px;
+    }
+
+    .recipe-card {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      overflow: hidden;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      cursor: pointer;
+      opacity: 0;
+      transform: translateY(30px);
+      animation: fadeInUp 0.6s forwards;
+    }
+
+    .recipe-card:hover {
+      transform: translateY(-10px);
+      box-shadow: 0 12px 25px rgba(0,117,255,0.25);
+    }
+
+    .recipe-card img {
+      width: 100%;
+      height: 220px;
+      object-fit: cover;
+      display: block;
+    }
+
+    @keyframes fadeInUp {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 600px) {
+      h1 {
+        font-size: 2.2rem;
+      }
+      button {
+        padding: 0.6rem 1.5rem;
+        font-size: 1rem;
+      }
+      .recipe-card img {
+        height: 180px;
+      }
+    }
+  </style>
 </head>
 <body>
-  <h1>Welcome to Cookify!</h1>
-  
+
+  <h1 class="Welcome-text">Welcome to Cookify!</h1>
+  <p id="userRole">Loading role...</p>
+
+  <div class="btn-container">
+    <button id="logoutBtn">Log Out</button>
+    <button id="deleteAccountBtn">Delete Account</button>
+  </div>
+
+  <section class="recipes" aria-label="Recipe list"></section>
+  <div class="footer-note">🚧 This website is under development.</div>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-  
-    // Firebase configuration
+    import { getAuth, onAuthStateChanged, signOut, deleteUser } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getFirestore, doc, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
     const firebaseConfig = {
       apiKey: "AIzaSyBuaxqVA7ILD6F8XjElRQuesILfV8Yz0gg",
       authDomain: "cookify-599da.firebaseapp.com",
@@ -22,18 +151,86 @@
       appId: "1:972844638311:web:55932e147dfeafb862f4c2",
       measurementId: "G-ZGYT0E0YZM"
     };
-  
-    // Initialize Firebase
+
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
-  
-    // Check if the user is logged in when the page loads
-    onAuthStateChanged(auth, (user) => {
+    const db = getFirestore(app);
+
+    const userRoleEl = document.getElementById('userRole');
+    const recipesContainer = document.querySelector('.recipes');
+
+    onAuthStateChanged(auth, async (user) => {
       if (!user) {
-        // If the user is not logged in, redirect to SignIn.html
         window.location.href = "SignIn.html";
+        return;
+      }
+
+      try {
+        const docRef = doc(db, "users", user.uid);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          const userData = docSnap.data();
+          const role = userData.role || "No role set";
+          userRoleEl.textContent = `Role: ${role}`;
+        } else {
+          userRoleEl.textContent = "No user data found";
+        }
+      } catch (error) {
+        userRoleEl.textContent = "Error loading role";
+        console.error(error);
+      }
+
+      loadRecipes();
+    });
+
+    function loadRecipes() {
+      const recipes = [
+        // { image: "images/carbonara.jpg" },
+        // { image: "images/spaghetti-sauce-with-meatballs.jpg" },
+        // { image: "images/ribeye-steak-pasta-puttanesca.jpg" },
+      ];
+
+      recipesContainer.innerHTML = "";
+
+      recipes.forEach((recipe, index) => {
+        const card = document.createElement('article');
+        card.classList.add('recipe-card');
+        card.style.animationDelay = `${index * 0.15}s`;
+
+        card.innerHTML = `
+          <img src="${recipe.image}" alt="Recipe Image">
+        `;
+
+        recipesContainer.appendChild(card);
+      });
+    }
+
+    document.getElementById("logoutBtn").addEventListener("click", () => {
+      signOut(auth).then(() => {
+        window.location.href = "SignIn.html";
+      }).catch((error) => {
+        alert("Error logging out: " + error.message);
+      });
+    });
+
+    document.getElementById("deleteAccountBtn").addEventListener("click", async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const confirmDelete = confirm("Are you sure you want to delete your account? This action cannot be undone.");
+      if (!confirmDelete) return;
+
+      try {
+        await deleteDoc(doc(db, "users", user.uid));
+        await deleteUser(user);
+        alert("Account deleted successfully.");
+        window.location.href = "SignIn.html";
+      } catch (error) {
+        alert("Failed to delete account: " + error.message);
       }
     });
   </script>
 </body>
 </html>
+
