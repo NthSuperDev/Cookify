@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cookify - Din Kulinariska Resa</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4fc3f7; /* Ljusblå huvudfärg */
+            --primary-dark: #03a9f4;
+            --white: #ffffff;
+            --glass: rgba(15, 23, 42, 0.4); /* Lite mörkare glas för bättre kontrast mot ljusa kakor */
+            --text-dark: #ffffff;
+            --text-light: rgba(255, 255, 255, 0.75);
+            --radius-lg: 32px;
+            --radius-md: 16px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #050a15;
+            position: relative;
+            overflow: hidden;
+            perspective: 1000px;
+        }
+
+        /* Dynamisk Bakgrund med Kakor */
+        .hero-bg {
+            position: absolute;
+            top: -10%;
+            left: -10%;
+            width: 120%;
+            height: 120%;
+            /* Ny bild på kakor för att matcha namnet Cookify */
+            background-image: url('https://images.unsplash.com/photo-1499636136210-6f4ee915583e?auto=format&fit=crop&q=80&w=2000');
+            background-size: cover;
+            background-position: center;
+            filter: brightness(0.35) saturate(1.1);
+            z-index: -2;
+            transition: transform 0.1s ease-out;
+        }
+
+        /* Svävande dekorationsbubblor */
+        .bubble {
+            position: absolute;
+            background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
+            border-radius: 50%;
+            opacity: 0.25;
+            filter: blur(50px);
+            z-index: -1;
+            animation: float 12s infinite ease-in-out;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(40px, -60px) scale(1.1); }
+        }
+
+        /* Inloggningskortet (Ultra Glassmorphism) */
+        .auth-card {
+            background: var(--glass);
+            backdrop-filter: blur(35px);
+            -webkit-backdrop-filter: blur(35px);
+            width: 100%;
+            max-width: 440px;
+            padding: 60px 45px;
+            border-radius: var(--radius-lg);
+            box-shadow: 0 40px 100px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.1);
+            text-align: center;
+            transform-style: preserve-3d;
+            animation: entrance 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        @keyframes entrance {
+            from { opacity: 0; transform: translateY(50px) rotateX(-15deg); }
+            to { opacity: 1; transform: translateY(0) rotateX(0); }
+        }
+
+        .logo-box {
+            margin-bottom: 40px;
+            animation: fadeInDown 0.8s ease backwards;
+            animation-delay: 0.3s;
+        }
+
+        .logo-box h1 {
+            font-family: 'Instrument Serif', serif;
+            font-size: 3.8rem;
+            color: var(--primary);
+            line-height: 1;
+            font-style: italic;
+            text-shadow: 0 0 25px rgba(79, 195, 247, 0.5);
+        }
+
+        .logo-box p {
+            color: var(--text-light);
+            font-size: 0.8rem;
+            font-weight: 700;
+            margin-top: 10px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+
+        /* Form animationer */
+        .input-group {
+            text-align: left;
+            margin-bottom: 25px;
+            opacity: 0;
+            animation: fadeInUp 0.6s ease forwards;
+        }
+
+        .input-group:nth-child(1) { animation-delay: 0.5s; }
+        .input-group:nth-child(2) { animation-delay: 0.6s; }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-light);
+            margin-bottom: 10px;
+            margin-left: 5px;
+        }
+
+        input {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 16px 20px;
+            border-radius: var(--radius-md);
+            font-size: 1rem;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            color: var(--white);
+        }
+
+        input:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.12);
+            border-color: var(--primary);
+            transform: scale(1.02);
+            box-shadow: 0 10px 30px rgba(79, 195, 247, 0.2);
+        }
+
+        /* Knappen */
+        .btn-primary {
+            width: 100%;
+            background: var(--primary);
+            color: #0a0f1d;
+            border: none;
+            padding: 18px;
+            border-radius: var(--radius-md);
+            font-size: 1rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.4s ease;
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            opacity: 0;
+            animation: fadeInUp 0.6s ease forwards;
+            animation-delay: 0.7s;
+        }
+
+        .btn-primary:hover {
+            background: var(--white);
+            box-shadow: 0 15px 40px rgba(79, 195, 247, 0.5);
+            transform: translateY(-4px);
+        }
+
+        /* Switch text */
+        .switch-mode {
+            margin-top: 35px;
+            font-size: 0.9rem;
+            color: var(--text-light);
+            opacity: 0;
+            animation: fadeIn 1s ease forwards;
+            animation-delay: 1s;
+        }
+
+        .switch-mode span {
+            color: var(--primary);
+            font-weight: 800;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .switch-mode span::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--primary);
+            transition: width 0.3s ease;
+        }
+
+        .switch-mode span:hover::after {
+            width: 100%;
+        }
+
+        /* Toast */
+        #notif-toast {
+            position: fixed;
+            top: 30px;
+            padding: 15px 30px;
+            border-radius: 50px;
+            backdrop-filter: blur(15px);
+            color: white;
+            font-weight: 600;
+            display: none;
+            z-index: 1000;
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .toast-error { background: rgba(255, 68, 68, 0.85); }
+        .toast-success { background: rgba(0, 200, 81, 0.85); }
+
+        .loader {
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(0,0,0,0.1);
+            border-top: 3px solid #0a0f1d;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            display: none;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    </style>
+</head>
+<body>
+
+    <div class="hero-bg" id="bg"></div>
+    
+    <!-- Dekorativa bubblor som ger djup -->
+    <div class="bubble" style="width: 500px; height: 500px; top: -150px; left: -150px;"></div>
+    <div class="bubble" style="width: 350px; height: 350px; bottom: -80px; right: -80px; animation-delay: -3s;"></div>
+
+    <div id="notif-toast"></div>
+
+    <div class="auth-card" id="card">
+        <div class="logo-box">
+            <h1>Cookify</h1>
+            <p id="tagline">The Art of Cookies & Cooking</p>
+        </div>
+
+        <form id="auth-form">
+            <div class="input-group">
+                <label>E-postadress</label>
+                <input type="email" id="email" placeholder="kock@cookify.se" required>
+            </div>
+            
+            <div class="input-group">
+                <label>Lösenord</label>
+                <input type="password" id="password" placeholder="••••••••" required>
+            </div>
+
+            <button type="submit" class="btn-primary" id="submit-btn">
+                <span id="btn-text">Öppna köket</span>
+                <div class="loader" id="loader"></div>
+            </button>
+        </form>
+
+        <div class="switch-mode">
+            <p id="switch-text">Ny i köket? <span id="toggle-link">Registrera dig</span></p>
+        </div>
+    </div>
+
+    <script>
+        // --- KONFIGURATION ---
+        // Lägg in din faktiska Supabase URL här sen
+        const SUPABASE_URL = 'https://ynzlipqkuwajhjkfukvs.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_X5swzxLZx57HNmPdwEEkSA_tG_TdPmB';
+
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // --- PARALLAX & TILT EFFEKT ---
+        document.addEventListener('mousemove', (e) => {
+            // Bakgrundsrörelse
+            const x = (window.innerWidth / 2 - e.pageX) / 45;
+            const y = (window.innerHeight / 2 - e.pageY) / 45;
+            document.getElementById('bg').style.transform = `scale(1.1) translate(${x}px, ${y}px)`;
+            
+            // 3D Tilt på kortet
+            const rx = (window.innerHeight / 2 - e.pageY) / 35;
+            const ry = (e.pageX - window.innerWidth / 2) / 35;
+            document.getElementById('card').style.transform = `rotateX(${rx}deg) rotateY(${ry}deg)`;
+        });
+
+        // --- ELEMENT ---
+        const authForm = document.getElementById('auth-form');
+        const emailField = document.getElementById('email');
+        const passField = document.getElementById('password');
+        const submitBtn = document.getElementById('submit-btn');
+        const btnText = document.getElementById('btn-text');
+        const loader = document.getElementById('loader');
+        const toggleLink = document.getElementById('toggle-link');
+        const tagline = document.getElementById('tagline');
+        const switchText = document.getElementById('switch-text');
+        const toast = document.getElementById('notif-toast');
+
+        let isLogin = true;
+
+        // --- LOGIK ---
+
+        function notify(msg, isError) {
+            toast.textContent = msg;
+            toast.style.display = 'block';
+            toast.className = isError ? 'toast-error' : 'toast-success';
+            setTimeout(() => { toast.style.display = 'none'; }, 4000);
+        }
+
+        toggleLink.addEventListener('click', () => {
+            isLogin = !isLogin;
+            btnText.textContent = isLogin ? 'Öppna köket' : 'Börja baka';
+            tagline.textContent = isLogin ? 'The Art of Cookies & Cooking' : 'Start Your Sweet Journey';
+            toggleLink.textContent = isLogin ? 'Registrera dig' : 'Logga in';
+            switchText.firstChild.textContent = isLogin ? 'Ny i köket? ' : 'Redan en Cookifier? ';
+        });
+
+        authForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = emailField.value;
+            const password = passField.value;
+
+            btnText.style.display = 'none';
+            loader.style.display = 'block';
+            submitBtn.disabled = true;
+
+            try {
+                if (isLogin) {
+                    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+                    if (error) throw error;
+                    notify('Välkommen tillbaka till Cookify!', false);
+                } else {
+                    const { error } = await supabaseClient.auth.signUp({ email, password });
+                    if (error) throw error;
+                    notify('Konto skapat! Kolla din e-post för bekräftelse.', false);
+                }
+            } catch (err) {
+                notify(err.message, true);
+            } finally {
+                btnText.style.display = 'block';
+                loader.style.display = 'none';
+                submitBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
